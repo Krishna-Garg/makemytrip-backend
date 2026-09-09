@@ -1,87 +1,116 @@
 package com.makemytrip.makemytrip.controllers;
-import com.makemytrip.makemytrip.services.CancellationService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import com.makemytrip.makemytrip.models.Users;
+
 import com.makemytrip.makemytrip.models.Flight;
 import com.makemytrip.makemytrip.models.Hotel;
-import com.makemytrip.makemytrip.repositories.UserRepository;
+import com.makemytrip.makemytrip.models.Users;
 import com.makemytrip.makemytrip.repositories.FlightRepository;
 import com.makemytrip.makemytrip.repositories.HotelRepository;
-import java.util.Map;
-import java.util.List;
-import java.util.Optional;
+import com.makemytrip.makemytrip.repositories.UserRepository;
+import com.makemytrip.makemytrip.services.CancellationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/admin")
 @CrossOrigin(origins = "*")
 public class AdminController {
-    @Autowired
-    private UserRepository userRepository;
 
-    @Autowired
-    private HotelRepository hotelRepository;
+    @Autowired private FlightRepository flightRepository;
+    @Autowired private HotelRepository hotelRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private CancellationService cancellationService;
 
-    @Autowired
-    private FlightRepository flightRepository;
+    // ── Flights ──────────────────────────────────────────────────────────────
 
-    @Autowired
-    private CancellationService cancellationService;
-
-    @GetMapping("/users")
-    public ResponseEntity<List<Users>> getallusers(){
-        List<Users> users=userRepository.findAll();
-        return ResponseEntity.ok(users);
-    }
     @PostMapping("/flight")
-    public Flight addflight(@RequestBody Flight flight){
-        return flightRepository.save(flight);
+    public ResponseEntity<Flight> addFlight(@RequestBody Flight flight) {
+        return ResponseEntity.ok(flightRepository.save(flight));
     }
+
+    @PutMapping("/flight/{id}")
+    public ResponseEntity<Flight> editFlight(@PathVariable String id, @RequestBody Flight updated) {
+        return flightRepository.findById(id).map(flight -> {
+            flight.setFlightName(updated.getFlightName());
+            flight.setFrom(updated.getFrom());
+            flight.setTo(updated.getTo());
+            flight.setDepartureTime(updated.getDepartureTime());
+            flight.setArrivalTime(updated.getArrivalTime());
+            flight.setPrice(updated.getPrice());
+            flight.setAvailableSeats(updated.getAvailableSeats());
+            if (updated.getBoardingMinutes() > 0) flight.setBoardingMinutes(updated.getBoardingMinutes());
+            return ResponseEntity.ok(flightRepository.save(flight));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/flight/{id}")
+    public ResponseEntity<Void> deleteFlight(@PathVariable String id) {
+        flightRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Hotels ───────────────────────────────────────────────────────────────
 
     @PostMapping("/hotel")
-    public Hotel addhotel(@RequestBody Hotel hotel){
-        return hotelRepository.save(hotel);
+    public ResponseEntity<Hotel> addHotel(@RequestBody Hotel hotel) {
+        return ResponseEntity.ok(hotelRepository.save(hotel));
     }
-    @PutMapping("flight/{id}")
-    public ResponseEntity<Flight> editflight(@PathVariable String id, @RequestBody Flight updatedFlight){
-        Optional<Flight> flightOptional=flightRepository.findById(id);
-        if(flightOptional.isPresent()){
-            Flight flight = flightOptional.get();
-            flight.setFlightName(updatedFlight.getFlightName());
-            flight.setFrom(updatedFlight.getFrom());
-            flight.setTo(updatedFlight.getTo());
-            flight.setDepartureTime(updatedFlight.getDepartureTime());
-            flight.setArrivalTime(updatedFlight.getArrivalTime());
-            flight.setPrice(updatedFlight.getPrice());
-            flight.setAvailableSeats(updatedFlight.getAvailableSeats());
-            flight.setBoardingMinutes(updatedFlight.getBoardingMinutes());
-            flightRepository.save(flight);
-            return  ResponseEntity.ok(flight);
-        }
-        return ResponseEntity.notFound().build();
+
+    @PutMapping("/hotel/{id}")
+    public ResponseEntity<Hotel> editHotel(@PathVariable String id, @RequestBody Hotel updated) {
+        return hotelRepository.findById(id).map(hotel -> {
+            hotel.setHotelName(updated.getHotelName());
+            hotel.setLocation(updated.getLocation());
+            hotel.setPricePerNight(updated.getPricePerNight());
+            hotel.setAvailableRooms(updated.getAvailableRooms());
+            hotel.setAmenities(updated.getAmenities());
+            if (updated.getImageUrls() != null) hotel.setImageUrls(updated.getImageUrls());
+            return ResponseEntity.ok(hotelRepository.save(hotel));
+        }).orElse(ResponseEntity.notFound().build());
     }
-    @PutMapping("hotel/{id}")
-    public ResponseEntity<Hotel> editHotel (@PathVariable String id, @RequestBody Hotel updatedHotel){
-        Optional<Hotel> hotelOptional=hotelRepository.findById(id);
-        if(hotelOptional.isPresent()){
-            Hotel hotel = hotelOptional.get();
-            hotel.setHotelName(updatedHotel.getHotelName());
-            hotel.setLocation(updatedHotel.getLocation());
-            hotel.setAvailableRooms(updatedHotel.getAvailableRooms());
-            hotel.setPricePerNight(updatedHotel.getPricePerNight());
-            hotel.setAmenities((updatedHotel.getAmenities()));
-            hotelRepository.save(hotel);
-            return ResponseEntity.ok(hotel);
-        }
-        return ResponseEntity.notFound().build();
+
+    @DeleteMapping("/hotel/{id}")
+    public ResponseEntity<Void> deleteHotel(@PathVariable String id) {
+        hotelRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
-    @PutMapping("/refund/status")
-    public ResponseEntity<Users.Booking> updateRefundStatus(@RequestParam String userId, @RequestParam String bookingId, @RequestParam String status) {
-        return ResponseEntity.ok(cancellationService.updateRefundStatus(userId, bookingId, status));
+
+    // ── Users — password stripped from all responses ──────────────────────────
+
+    private Map<String, Object> safeUser(Users u) {
+        Map<String, Object> safe = new HashMap<>();
+        safe.put("id", u.getId());
+        safe.put("firstName", u.getFirstName());
+        safe.put("lastName", u.getLastName());
+        safe.put("email", u.getEmail());
+        safe.put("role", u.getRole());
+        safe.put("phoneNumber", u.getPhoneNumber());
+        safe.put("bookings", u.getBookings());
+        return safe;
     }
+
+    @GetMapping("/users")
+    public ResponseEntity<List<Map<String, Object>>> getAllUsers() {
+        return ResponseEntity.ok(
+            userRepository.findAll().stream().map(this::safeUser).collect(Collectors.toList())
+        );
+    }
+
+    // ── Refunds ───────────────────────────────────────────────────────────────
+
     @GetMapping("/refunds")
     public ResponseEntity<List<Map<String, Object>>> getAllRefunds() {
         return ResponseEntity.ok(cancellationService.getAllCancelledBookings());
+    }
+
+    @PutMapping("/refund/status")
+    public ResponseEntity<Users.Booking> updateRefundStatus(
+            @RequestParam String userId,
+            @RequestParam String bookingId,
+            @RequestParam String status) {
+        return ResponseEntity.ok(cancellationService.updateRefundStatus(userId, bookingId, status));
     }
 }

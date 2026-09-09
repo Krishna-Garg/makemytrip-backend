@@ -17,7 +17,6 @@ import java.util.Optional;
 @Service
 public class BookingService {
 
-    @Autowired private RefundPolicyService refundPolicyService;
     @Autowired private UserRepository userRepository;
     @Autowired private FlightRepository flightRepository;
     @Autowired private HotelRepository hotelRepository;
@@ -32,33 +31,45 @@ public class BookingService {
             Users user = usersOptional.get();
             Flight flight = flightOptional.get();
 
-            if (flight.getAvailableSeats() >= seats) {
-                flight.setAvailableSeats(flight.getAvailableSeats() - seats);
-                flightRepository.save(flight);
-
-                // Confirm locked seats → BOOKED
-                if (selectedSeats != null && !selectedSeats.isEmpty()) {
-                    seatService.confirmSeats(flightId, selectedSeats);
-                }
-
-                Booking booking = new Booking();
-                booking.setType("Flight");
-                booking.setBookingId(flightId);
-                booking.setDate(LocalDate.now().toString());
-                booking.setQuantity(seats);
-                booking.setTotalPrice(price);
-                booking.setBookingStatus("CONFIRMED");
-                booking.setDepartureTime(flight.getDepartureTime());
-                if (selectedSeats != null) {
-                    booking.setSelectedSeats(selectedSeats);
-                }
-
-                user.getBookings().add(booking);
-                userRepository.save(user);
-                return booking;
+            // FIX: for seat-map flights, count truly AVAILABLE seats
+            // not just the stored availableSeats number (which may include locked)
+            int effectiveAvailable;
+            if (flight.getSeats() != null && !flight.getSeats().isEmpty()) {
+                effectiveAvailable = (int) flight.getSeats().stream()
+                    .filter(s -> "AVAILABLE".equals(s.getStatus()))
+                    .count();
             } else {
+                effectiveAvailable = flight.getAvailableSeats();
+            }
+
+            if (effectiveAvailable < seats) {
                 throw new RuntimeException("Not enough seats available");
             }
+
+            // Decrement available seats count
+            flight.setAvailableSeats(Math.max(0, flight.getAvailableSeats() - seats));
+            flightRepository.save(flight);
+
+            // Confirm locked seats → BOOKED in seat map
+            if (selectedSeats != null && !selectedSeats.isEmpty()) {
+                seatService.confirmSeats(flightId, selectedSeats);
+            }
+
+            Booking booking = new Booking();
+            booking.setType("Flight");
+            booking.setBookingId(flightId);
+            booking.setDate(LocalDate.now().toString());
+            booking.setQuantity(seats);
+            booking.setTotalPrice(price);
+            booking.setBookingStatus("CONFIRMED");
+            booking.setDepartureTime(flight.getDepartureTime());
+            if (selectedSeats != null) {
+                booking.setSelectedSeats(selectedSeats);
+            }
+
+            user.getBookings().add(booking);
+            userRepository.save(user);
+            return booking;
         }
         throw new RuntimeException("User or flight not found");
     }
@@ -72,32 +83,31 @@ public class BookingService {
             Users user = usersOptional.get();
             Hotel hotel = hotelOptional.get();
 
-            if (hotel.getAvailableRooms() >= rooms) {
-                hotel.setAvailableRooms(hotel.getAvailableRooms() - rooms);
-                hotelRepository.save(hotel);
-
-                // Decrement specific room type availability
-                if (selectedRoomType != null && !selectedRoomType.isEmpty()) {
-                    seatService.bookRoom(hotelId, selectedRoomType, rooms);
-                }
-
-                Booking booking = new Booking();
-                booking.setType("Hotel");
-                booking.setBookingId(hotelId);
-                booking.setDate(LocalDate.now().toString());
-                booking.setQuantity(rooms);
-                booking.setTotalPrice(price);
-                booking.setBookingStatus("CONFIRMED");
-                if (selectedRoomType != null) {
-                    booking.setSelectedRoomType(selectedRoomType);
-                }
-
-                user.getBookings().add(booking);
-                userRepository.save(user);
-                return booking;
-            } else {
+            if (hotel.getAvailableRooms() < rooms) {
                 throw new RuntimeException("Not enough rooms available");
             }
+
+            hotel.setAvailableRooms(Math.max(0, hotel.getAvailableRooms() - rooms));
+            hotelRepository.save(hotel);
+
+            if (selectedRoomType != null && !selectedRoomType.isEmpty()) {
+                seatService.bookRoom(hotelId, selectedRoomType, rooms);
+            }
+
+            Booking booking = new Booking();
+            booking.setType("Hotel");
+            booking.setBookingId(hotelId);
+            booking.setDate(LocalDate.now().toString());
+            booking.setQuantity(rooms);
+            booking.setTotalPrice(price);
+            booking.setBookingStatus("CONFIRMED");
+            if (selectedRoomType != null) {
+                booking.setSelectedRoomType(selectedRoomType);
+            }
+
+            user.getBookings().add(booking);
+            userRepository.save(user);
+            return booking;
         }
         throw new RuntimeException("User or hotel not found");
     }

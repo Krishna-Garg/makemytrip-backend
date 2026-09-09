@@ -14,6 +14,7 @@ public class Hotel {
     private double pricePerNight;
     private int availableRooms;
     private String amenities;
+    private List<String> imageUrls = new ArrayList<>();
 
     // ── NEW: Room types ───────────────────────────────────────
     // Auto-generated from availableRooms on first seat-map call
@@ -64,4 +65,6 @@ public class Hotel {
     // new getters/setters
     public List<RoomType> getRoomTypes() { return roomTypes; }
     public void setRoomTypes(List<RoomType> r) { this.roomTypes = r; }
+    public List<String> getImageUrls(){return imageUrls;}
+    public void setImageUrls(List<String> i) {this.imageUrls = i;}
 }
