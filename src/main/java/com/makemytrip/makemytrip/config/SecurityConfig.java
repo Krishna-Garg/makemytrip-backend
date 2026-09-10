@@ -39,7 +39,7 @@ public class SecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**") // Allow all endpoints
-                        .allowedOrigins("http://localhost:3000") // Allow all origins
+                        .allowedOrigins("https://makemytrip-frontend-j4d4u7w1t-krishna-gargs-projects-2161db3c.vercel.app/") // Allow all origins
                         .allowedMethods("*") // Allow specific HTTP methods
                         .allowedHeaders("*") // Allow all headers
                         .allowCredentials(false); // Disallow credentials for safety
