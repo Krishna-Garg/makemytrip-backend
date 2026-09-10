@@ -36,6 +36,10 @@ public class RootController {
         return dto;
     }
 
+    @GetMapping("/")
+    public String home() {
+        return "Welcome to the backend";
+    }
     // GET /flight — excludes templates and expired, strips seats[]
     @GetMapping("/flight")
     public ResponseEntity<List<Map<String, Object>>> getallflights() {
