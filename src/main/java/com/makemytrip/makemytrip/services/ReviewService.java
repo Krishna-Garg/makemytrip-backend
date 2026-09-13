@@ -67,7 +67,7 @@ public class ReviewService {
         return reviewRepository.save(review);
     }
 
-    public Review markHelpFul(String reviewId) {
+    public Review markHelpful(String reviewId) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new RuntimeException("Review not found!"));
         review.setHelpfulCount(review.getHelpfulCount() + 1);
@@ -82,7 +82,7 @@ public class ReviewService {
         return reviewRepository.save(review);
     }
 
-    public List<Review> getFlaggedReview() {
+    public List<Review> getFlaggedReviews() {
         return reviewRepository.findByFlaggedTrue();
     }
 
