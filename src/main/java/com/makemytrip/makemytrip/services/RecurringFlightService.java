@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.*;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 @Service
@@ -22,96 +21,84 @@ public class RecurringFlightService {
         "SAT", DayOfWeek.SATURDAY, "SUN", DayOfWeek.SUNDAY
     );
 
-    // ── Runs every day at midnight ────────────────────────────────────────────
     @Scheduled(cron = "0 0 0 * * *")
     public void generateFromTemplates() {
-        doGenerate();
+        doGenerate(flightRepository.findAll());
     }
 
-    // ── Called immediately when admin saves a new template ───────────────────
     public List<Flight> generateFromTemplate(Flight template) {
-        return doGenerateForTemplate(template, LocalDate.now());
+        List<Flight> allFlights = flightRepository.findAll();
+        return doGenerateForTemplate(template, LocalDate.now(), allFlights);
     }
 
-    // ── Core generation logic ─────────────────────────────────────────────────
-    private void doGenerate() {
-        List<Flight> templates = flightRepository.findAll().stream()
-            .filter(Flight::isTemplate).toList();
-        LocalDate today = LocalDate.now();
+    private void doGenerate(List<Flight> allFlights) {
+        List<Flight> templates = allFlights.stream().filter(Flight::isTemplate).toList();
         for (Flight template : templates) {
-            doGenerateForTemplate(template, today);
+            doGenerateForTemplate(template, LocalDate.now(), allFlights);
         }
     }
 
-    private List<Flight> doGenerateForTemplate(Flight template, LocalDate startDate) {
+    private List<Flight> doGenerateForTemplate(Flight template, LocalDate startDate,
+                                                List<Flight> allFlights) {
         List<Flight> generated = new ArrayList<>();
-
+        if (template.getRecurringDays() == null || template.getRecurringDays().isEmpty()) return generated;
         if (template.getBaseTime() == null || template.getBaseTime().isEmpty()) return generated;
 
-        // Parse baseTime e.g. "06:00"
-        String[] timeParts = template.getBaseTime().split(":");
-        if (timeParts.length < 2) return generated;
-        int depHour = Integer.parseInt(timeParts[0]);
-        int depMin  = Integer.parseInt(timeParts[1]);
-
-        // Calculate duration from template departure/arrival (in minutes)
-        long durationMinutes = 120; // default 2h fallback
+        int depHour, depMin;
         try {
-            LocalDateTime templateDep = LocalDateTime.parse(template.getDepartureTime());
-            LocalDateTime templateArr = LocalDateTime.parse(template.getArrivalTime());
-            durationMinutes = ChronoUnit.MINUTES.between(templateDep, templateArr);
-            if (durationMinutes <= 0) durationMinutes = 120;
+            String[] tp = template.getBaseTime().split(":");
+            depHour = Integer.parseInt(tp[0]);
+            depMin  = Integer.parseInt(tp[1]);
+        } catch (Exception e) { return generated; }
+
+        long durationMinutes = 120;
+        try {
+            LocalDateTime d1 = LocalDateTime.parse(template.getDepartureTime());
+            LocalDateTime d2 = LocalDateTime.parse(template.getArrivalTime());
+            long d = ChronoUnit.MINUTES.between(d1, d2);
+            if (d > 0) durationMinutes = d;
         } catch (Exception ignored) {}
+
+        // FIX #14: build existing set ONCE outside nested loops
+        Set<String> existingDeps = new HashSet<>();
+        for (Flight f : allFlights) {
+            if (template.getId().equals(f.getTemplateId())) {
+                existingDeps.add(f.getDepartureTime());
+            }
+        }
 
         for (String dayCode : template.getRecurringDays()) {
             DayOfWeek dow = DAY_MAP.get(dayCode);
             if (dow == null) continue;
-
-            // Generate for today + next 4 weeks (28 days)
             for (int offset = 0; offset < 28; offset++) {
                 LocalDate targetDate = startDate.plusDays(offset);
-
-                // Only generate for matching day-of-week
                 if (targetDate.getDayOfWeek() != dow) continue;
-
                 LocalDateTime dep = LocalDateTime.of(targetDate, LocalTime.of(depHour, depMin));
-
-                // Skip if departure already passed
                 if (dep.isBefore(LocalDateTime.now())) continue;
-
-                LocalDateTime arr = dep.plusMinutes(durationMinutes);
                 String depStr = dep.toString();
-
-                // Skip if already exists
-                boolean exists = flightRepository.findAll().stream()
-                    .anyMatch(f -> template.getId().equals(f.getTemplateId())
-                        && depStr.equals(f.getDepartureTime()));
-                if (exists) continue;
+                if (existingDeps.contains(depStr)) continue;
 
                 Flight gen = new Flight();
                 gen.setFlightName(template.getFlightName());
                 gen.setFrom(template.getFrom());
                 gen.setTo(template.getTo());
                 gen.setDepartureTime(depStr);
-                gen.setArrivalTime(arr.toString());
+                gen.setArrivalTime(dep.plusMinutes(durationMinutes).toString());
                 gen.setPrice(template.getPrice());
                 gen.setAvailableSeats(template.getAvailableSeats());
                 gen.setBoardingMinutes(template.getBoardingMinutes() > 0 ? template.getBoardingMinutes() : 45);
                 gen.setTemplateId(template.getId());
                 gen.setStatus("ON_TIME");
-
-                // FIX: copy aircraftModel so seat maps work on generated flights
-                if (template.getAircraftModel() != null && !template.getAircraftModel().isEmpty()) {
+                if (template.getAircraftModel() != null && !template.getAircraftModel().isEmpty())
                     gen.setAircraftModel(template.getAircraftModel());
-                }
 
                 generated.add(flightRepository.save(gen));
+                existingDeps.add(depStr);
             }
         }
         return generated;
     }
 
-    // ── Admin: get all flights generated from a specific template ─────────────
     public List<Flight> getGeneratedFlights(String templateId) {
         return flightRepository.findAll().stream()
             .filter(f -> templateId.equals(f.getTemplateId()))
@@ -119,10 +106,7 @@ public class RecurringFlightService {
             .toList();
     }
 
-    // ── Admin: get all templates ──────────────────────────────────────────────
     public List<Flight> getAllTemplates() {
-        return flightRepository.findAll().stream()
-            .filter(Flight::isTemplate)
-            .toList();
+        return flightRepository.findAll().stream().filter(Flight::isTemplate).toList();
     }
 }

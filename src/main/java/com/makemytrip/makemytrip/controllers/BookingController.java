@@ -1,12 +1,16 @@
+// ═══════════════════════════════════════════════════════════
+// controllers/BookingController.java
+// FIX #8: (Integer) → ((Number) x).intValue()
+// ═══════════════════════════════════════════════════════════
 package com.makemytrip.makemytrip.controllers;
 
+import com.makemytrip.makemytrip.models.Users;
+import com.makemytrip.makemytrip.models.CancellationReason;
+import com.makemytrip.makemytrip.services.BookingService;
+import com.makemytrip.makemytrip.services.CancellationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.makemytrip.makemytrip.models.Users;
-import com.makemytrip.makemytrip.services.BookingService;
-import com.makemytrip.makemytrip.models.CancellationReason;
-import com.makemytrip.makemytrip.services.CancellationService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -14,33 +18,32 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/booking")
-@CrossOrigin(origins = "*")
 public class BookingController {
 
     @Autowired private BookingService bookingService;
     @Autowired private CancellationService cancellationService;
 
-    // Body: { userId, flightId, seats, price, selectedSeats: [] }
     @PostMapping("/flight")
-    public Users.Booking bookFlight(@RequestBody Map<String, Object> body) {
-        String userId = (String) body.get("userId");
+    public ResponseEntity<Users.Booking> bookFlight(@RequestBody Map<String, Object> body) {
+        String userId  = (String) body.get("userId");
         String flightId = (String) body.get("flightId");
-        int seats = (Integer) body.get("seats");
-        double price = ((Number) body.get("price")).doubleValue();
+        // FIX #8: safe cast from Number
+        int seats      = ((Number) body.get("seats")).intValue();
+        double price   = ((Number) body.get("price")).doubleValue();
         @SuppressWarnings("unchecked")
         List<String> selectedSeats = (List<String>) body.getOrDefault("selectedSeats", null);
-        return bookingService.bookFlight(userId, flightId, seats, price, selectedSeats);
+        return ResponseEntity.ok(bookingService.bookFlight(userId, flightId, seats, price, selectedSeats));
     }
 
-    // Body: { userId, hotelId, rooms, price, selectedRoomType }
     @PostMapping("/hotel")
-    public Users.Booking bookhotel(@RequestBody Map<String, Object> body) {
-        String userId = (String) body.get("userId");
+    public ResponseEntity<Users.Booking> bookhotel(@RequestBody Map<String, Object> body) {
+        String userId  = (String) body.get("userId");
         String hotelId = (String) body.get("hotelId");
-        int rooms = (Integer) body.get("rooms");
-        double price = ((Number) body.get("price")).doubleValue();
+        // FIX #8: safe cast from Number
+        int rooms      = ((Number) body.get("rooms")).intValue();
+        double price   = ((Number) body.get("price")).doubleValue();
         String selectedRoomType = (String) body.getOrDefault("selectedRoomType", null);
-        return bookingService.bookhotel(userId, hotelId, rooms, price, selectedRoomType);
+        return ResponseEntity.ok(bookingService.bookhotel(userId, hotelId, rooms, price, selectedRoomType));
     }
 
     @PostMapping("/cancel")
@@ -59,8 +62,8 @@ public class BookingController {
     @GetMapping("/cancellation-reasons")
     public ResponseEntity<List<Map<String, String>>> getCancellationReasons() {
         List<Map<String, String>> reasons = Arrays.stream(CancellationReason.values())
-                .map(r -> Map.of("value", r.name(), "label", r.getLabel()))
-                .toList();
+            .map(r -> Map.of("value", r.name(), "label", r.getLabel()))
+            .toList();
         return ResponseEntity.ok(reasons);
     }
 }

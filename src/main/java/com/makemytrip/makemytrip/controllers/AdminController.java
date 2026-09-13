@@ -52,6 +52,29 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/flights")
+    public ResponseEntity<List<Map<String, Object>>> getAdminFlights() {
+        List<Map<String, Object>> flights = flightRepository.findAll().stream()
+            .filter(f -> !f.isTemplate())
+            .map(f -> {
+                Map<String, Object> dto = new java.util.HashMap<>();
+                dto.put("_id",           f.getId() != null ? f.getId() : "");
+                dto.put("flightName",    f.getFlightName() != null ? f.getFlightName() : "");
+                dto.put("from",          f.getFrom() != null ? f.getFrom() : "");
+                dto.put("to",            f.getTo() != null ? f.getTo() : "");
+                dto.put("departureTime", f.getDepartureTime() != null ? f.getDepartureTime() : "");
+                dto.put("arrivalTime",   f.getArrivalTime() != null ? f.getArrivalTime() : "");
+                dto.put("price",         f.getPrice());
+                dto.put("availableSeats",f.getAvailableSeats());
+                dto.put("status",        f.getStatus() != null ? f.getStatus() : "ON_TIME");
+                dto.put("aircraftModel", f.getAircraftModel() != null ? f.getAircraftModel() : "");
+                dto.put("templateId",    f.getTemplateId() != null ? f.getTemplateId() : "");
+                return dto;
+            })
+            .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(flights);
+    }
+
     // ── Hotels ───────────────────────────────────────────────────────────────
 
     @PostMapping("/hotel")
